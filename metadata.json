@@ -1,0 +1,6 @@
+{
+  "name": "LiveEval - ระบบประเมินความพึงพอใจ & Live Dashboard",
+  "description": "เว็บแอปพลิเคชันเก็บแบบประเมินความพึงพอใจการอบรมสเกล 1-5 บนมือถือ พร้อม Live Projector Dashboard แสดงผลคะแนนเฉลี่ย เกณฑ์ 5 ระดับ ข้อเสนอแนะ และส่งออก CSV",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

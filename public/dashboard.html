@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Dashboard - ผลการประเมินความพึงพอใจการอบรม</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- QRCode.js CDN for live projector QR display -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+  <!-- Firebase App & Realtime Database SDK (Compat v9) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <style>
+    body {
+      font-family: 'Prompt', 'Plus Jakarta Sans', sans-serif;
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+    .bar-animate {
+      transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+  </style>
+</head>
+<body id="app-body" class="bg-slate-900 text-slate-100 min-h-screen antialiased">
+
+  <!-- Top Bar Contract: Brand | Navigation Info | Action Buttons -->
+  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-30 px-6 py-3.5">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-8">
+      
+      <!-- Zone 1: Wordmark / Title -->
+      <div class="flex items-center gap-3 shrink-0">
+        <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-base">
+          📊
+        </div>
+        <div>
+          <h1 class="text-base font-bold tracking-tight text-white whitespace-nowrap">
+            Live Dashboard ผลการประเมินความพึงพอใจ
+          </h1>
+          <p class="text-xs text-slate-400">อัปเดตอัตโนมัติทันทีที่มีผู้ส่งแบบประเมิน (Real-Time)</p>
+        </div>
+      </div>
+
+      <!-- Zone 2: Navigation Info / Status (Clean Typography, No Pills) -->
+      <div class="hidden md:flex items-center gap-4 text-xs text-slate-400">
+        <span id="live-indicator-text" class="text-emerald-400 font-medium">● เชื่อมต่อระบบเรียลไทม์</span>
+        <span>·</span>
+        <span id="last-updated-text">อัปเดตล่าสุด: กำลังโหลด...</span>
+      </div>
+
+      <!-- Zone 3: Actions (Fullscreen, QR Code Modal, Export CSV) -->
+      <div class="flex items-center gap-2.5 shrink-0">
+        <button onclick="toggleTheme()" class="px-3 py-2 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors whitespace-nowrap" title="สลับธีม สว่าง / มืด">
+          🌓 <span class="hidden sm:inline">สลับธีม</span>
+        </button>
+
+        <button onclick="openQRModal()" class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors whitespace-nowrap flex items-center gap-1.5 shadow-sm">
+          <span>📱 QR ตอบแบบสอบถาม</span>
+        </button>
+
+        <button onclick="exportCSV()" class="px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-colors whitespace-nowrap flex items-center gap-1.5">
+          <span>📥 ดาวน์โหลด CSV</span>
+        </button>
+
+        <button onclick="toggleFullScreen()" class="px-3 py-2 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors whitespace-nowrap" title="โหมดเต็มจอสำหรับโปรเจกเตอร์">
+          ⛶
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Viewport -->
+  <main class="max-w-7xl mx-auto px-6 py-6 space-y-6">
+
+    <!-- KPI Highlight Row (High impact for projector screen) -->
+    <section class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      
+      <!-- Card 1: Total Respondents -->
+      <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+        <div class="text-xs font-semibold text-slate-400 mb-1">
+          จำนวนผู้เข้าอบรมที่ตอบแบบประเมิน
+        </div>
+        <div class="flex items-baseline gap-2 my-1">
+          <span id="kpi-total-count" class="text-4xl lg:text-5xl font-extrabold text-white tabular-nums tracking-tight">0</span>
+          <span class="text-sm text-slate-400">ท่าน</span>
+        </div>
+        <div class="text-xs text-slate-400 pt-1 border-t border-slate-700/50">
+          คำนวณแบบไม่ระบุตัวตน (Anonymous)
+        </div>
+      </div>
+
+      <!-- Card 2: Overall Satisfaction Mean Score -->
+      <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between md:col-span-2">
+        <div class="flex items-center justify-between">
+          <div class="text-xs font-semibold text-slate-400">
+            คะแนนเฉลี่ยความพึงพอใจโดยรวมทั้ง 5 ด้าน
+          </div>
+          <div id="kpi-level-badge" class="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            กำลังคำนวณ...
+          </div>
+        </div>
+
+        <div class="flex items-baseline gap-3 my-2">
+          <span id="kpi-overall-score" class="text-5xl lg:text-6xl font-extrabold text-white tabular-nums tracking-tight">0.00</span>
+          <span class="text-xl text-slate-400 font-medium">/ 5.00</span>
+        </div>
+
+        <!-- Likert scale reference criteria -->
+        <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-700/50 overflow-x-auto">
+          <span>เกณฑ์: 4.51-5.00 มากที่สุด</span>
+          <span>·</span>
+          <span>3.51-4.50 มาก</span>
+          <span>·</span>
+          <span>2.51-3.50 ปานกลาง</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Quick Performance Aspect Insights -->
+      <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+        <div class="text-xs font-semibold text-slate-400 mb-2">
+          ไฮไลต์จุดเด่น & จุดพัฒนา
+        </div>
+        
+        <div class="space-y-2 text-xs">
+          <div class="p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/40">
+            <span class="text-emerald-400 font-bold block mb-0.5">★ ด้านที่ได้คะแนนสูงสุด</span>
+            <span id="kpi-highest-text" class="text-slate-200 line-clamp-1">-</span>
+            <span id="kpi-highest-score" class="text-emerald-300 font-semibold tabular-nums mt-0.5 block">-</span>
+          </div>
+
+          <div class="p-2 rounded-lg bg-blue-950/30 border border-blue-800/40">
+            <span class="text-blue-400 font-bold block mb-0.5">⚡ ด้านที่ควรส่งเสริมพัฒนา</span>
+            <span id="kpi-lowest-text" class="text-slate-200 line-clamp-1">-</span>
+            <span id="kpi-lowest-score" class="text-blue-300 font-semibold tabular-nums mt-0.5 block">-</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Main Content Split: Questions Bar Chart (Left 65%) + Live Comments & QR (Right 35%) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Left Column: Detailed Questions Bar Chart -->
+      <section class="lg:col-span-8 bg-slate-800/80 border border-slate-700/80 rounded-2xl p-6 shadow-xs">
+        <div class="flex items-center justify-between mb-6 pb-3 border-b border-slate-700/60">
+          <div>
+            <h2 class="text-lg font-bold text-white tracking-tight">
+              คะแนนเฉลี่ยรายข้อ (สเกล 1 - 5)
+            </h2>
+            <p class="text-xs text-slate-400">ผลการประเมินแยกตามมิติสำคัญ 5 ด้าน</p>
+          </div>
+          <span class="text-xs text-slate-400">เต็ม 5.00 คะแนน</span>
+        </div>
+
+        <div id="questions-chart-container" class="space-y-5">
+          <!-- Dynamic bars will be rendered here -->
+        </div>
+      </section>
+
+      <!-- Right Column: Recent Comments & Feedback Feed -->
+      <section class="lg:col-span-4 flex flex-col gap-6">
+        
+        <!-- Live Suggestions Card -->
+        <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-6 shadow-xs flex-1 flex flex-col">
+          <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-700/60">
+            <h3 class="text-base font-bold text-white">ข้อเสนอแนะล่าสุด</h3>
+            <span id="comment-count-text" class="text-xs text-slate-400">0 รายการ</span>
+          </div>
+
+          <div id="comments-container" class="space-y-3 overflow-y-auto max-h-[420px] pr-1">
+            <p class="text-xs text-slate-500 text-center py-8">
+              ยังไม่มีข้อเสนอแนะเพิ่มเติม
+            </p>
+          </div>
+        </div>
+
+        <!-- Quick Reset or Seed Controls for Trainer -->
+        <div class="p-4 bg-slate-800/40 border border-slate-700/50 rounded-2xl text-xs text-slate-400 flex items-center justify-between">
+          <span>การจัดการข้อมูลหน้างาน:</span>
+          <div class="flex items-center gap-2">
+            <button onclick="seedDemoData()" class="px-2.5 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200">
+              เติมข้อมูลทดสอบ
+            </button>
+            <button onclick="clearAllData()" class="px-2.5 py-1 rounded bg-rose-900/50 hover:bg-rose-800/60 text-rose-300">
+              ล้างข้อมูลทั้งหมด
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- Large QR Code Modal for Projector Presentation -->
+  <div id="qr-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white text-slate-900 rounded-3xl p-8 max-w-md w-full shadow-2xl text-center relative border border-slate-200">
+      <button onclick="closeQRModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-700 text-2xl font-bold w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+        ×
+      </button>
+
+      <div class="mb-4">
+        <span class="text-xs font-semibold text-blue-600 uppercase tracking-wider">สแกนเพื่อเริ่มประเมิน</span>
+        <h2 class="text-2xl font-bold text-slate-900 mt-1">ร่วมประเมินความพึงพอใจ</h2>
+        <p class="text-xs text-slate-500 mt-1">เปิดกล้องมือถือสแกน QR Code ด้านล่างนี้เพื่อตอบแบบสอบถาม</p>
+      </div>
+
+      <!-- QR Code Canvas Container -->
+      <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200 inline-block my-2 shadow-inner">
+        <div id="qrcode-display" class="flex justify-center"></div>
+      </div>
+
+      <!-- Link info & Copy Button -->
+      <div class="mt-4 pt-4 border-t border-slate-100">
+        <p class="text-xs text-slate-400 mb-2">หรือเข้าผ่านลิงก์โดยตรง:</p>
+        <div class="flex items-center gap-2 bg-slate-100 p-2 rounded-xl">
+          <input id="survey-url-input" type="text" readonly class="text-xs text-slate-700 bg-transparent flex-1 outline-none font-mono">
+          <button onclick="copySurveyUrl()" id="copy-url-btn" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold whitespace-nowrap">
+            คัดลอกลิงก์
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. FIREBASE CONFIGURATION (ตั้งค่าที่นี่)
+    // ==========================================
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const QUESTIONS = [
+      { id: 'q1', title: '1. ความเหมาะสมของเนื้อหาและหลักสูตรการอบรม', short: 'เนื้อหาหลักสูตร' },
+      { id: 'q2', title: '2. ความรู้ความสามารถและเทคนิคการถ่ายทอดของวิทยากร', short: 'วิทยากรและการสอน' },
+      { id: 'q3', title: '3. คุณภาพสื่อ เอกสาร และอุปกรณ์ประกอบการอบรม', short: 'สื่อและเอกสาร' },
+      { id: 'q4', title: '4. การจัดเวลา สถานที่ และการอำนวยความสะดวก', short: 'เวลาและสถานที่' },
+      { id: 'q5', title: '5. การนำความรู้และทักษะไปประยุกต์ใช้ในการทำงานจริง', short: 'การนำไปใช้จริง' }
+    ];
+
+    let currentResponses = [];
+    const LOCAL_DATA_KEY = 'liveeval_training_responses_v1';
+
+    // ==========================================
+    // 2. INITIALIZATION & REAL-TIME LISTENERS
+    // ==========================================
+    window.addEventListener('DOMContentLoaded', () => {
+      initSurveyUrl();
+      initRealtimeSync();
+    });
+
+    function initRealtimeSync() {
+      // 1. ตรวจสอบการเชื่อมต่อ Firebase Realtime Database
+      let hasFirebase = false;
+      if (firebaseConfig.databaseURL && !firebaseConfig.databaseURL.includes("YOUR_PROJECT_ID")) {
+        try {
+          firebase.initializeApp(firebaseConfig);
+          const db = firebase.database();
+          const ref = db.ref('training_eval/responses');
+
+          // Real-time listener via Firebase WebSocket/Long-polling
+          ref.on('value', (snapshot) => {
+            const val = snapshot.val();
+            if (val) {
+              currentResponses = Object.values(val);
+              currentResponses.sort((a, b) => b.timestamp - a.timestamp);
+              // Cache locally
+              localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(currentResponses));
+            } else {
+              currentResponses = [];
+            }
+            updateDashboard();
+          });
+
+          hasFirebase = true;
+          document.getElementById('live-indicator-text').innerText = '● Firebase Realtime Database เชื่อมต่อสด';
+        } catch (e) {
+          console.warn("Firebase listener error:", e);
+        }
+      }
+
+      // 2. ถ้าไม่ได้ต่อ Firebase หรือทำงานในโหมด Local/Offline:
+      // ดึงจาก LocalStorage และรับสัญญาณ BroadcastChannel สำหรับ Realtime ภายในเบราว์เซอร์
+      if (!hasFirebase) {
+        loadFromLocalStorage();
+        try {
+          const channel = new BroadcastChannel('liveeval_realtime_sync');
+          channel.onmessage = () => {
+            loadFromLocalStorage();
+          };
+        } catch (_) {}
+      }
+    }
+
+    function loadFromLocalStorage() {
+      const raw = localStorage.getItem(LOCAL_DATA_KEY);
+      if (raw) {
+        try {
+          currentResponses = JSON.parse(raw);
+        } catch (_) {
+          currentResponses = [];
+        }
+      } else {
+        // หากเปิดครั้งแรก เติมข้อมูลตัวอย่างเพื่อให้หน้าจอมีชีวิตชีวา
+        seedDemoData(false);
+      }
+      updateDashboard();
+    }
+
+    // ==========================================
+    // 3. STATISTICAL ENGINE & LIKERT INTERPRETATION
+    // ==========================================
+    function getLikertLevel(score) {
+      if (score <= 0) return { label: 'ยังไม่มีข้อมูล', color: 'text-slate-400', bg: 'bg-slate-700/50' };
+      if (score >= 4.51) return { label: 'มากที่สุด (Highest)', color: 'text-emerald-400', bg: 'bg-emerald-500/20' };
+      if (score >= 3.51) return { label: 'มาก (High)', color: 'text-blue-400', bg: 'bg-blue-500/20' };
+      if (score >= 2.51) return { label: 'ปานกลาง (Moderate)', color: 'text-amber-400', bg: 'bg-amber-500/20' };
+      if (score >= 1.51) return { label: 'น้อย (Low)', color: 'text-orange-400', bg: 'bg-orange-500/20' };
+      return { label: 'น้อยที่สุด (Lowest)', color: 'text-rose-400', bg: 'bg-rose-500/20' };
+    }
+
+    function updateDashboard() {
+      const total = currentResponses.length;
+      document.getElementById('kpi-total-count').innerText = total;
+      document.getElementById('last-updated-text').innerText = `อัปเดตล่าสุด: ${new Date().toLocaleTimeString('th-TH')}`;
+
+      if (total === 0) {
+        document.getElementById('kpi-overall-score').innerText = '0.00';
+        document.getElementById('kpi-level-badge').innerText = 'รอข้อมูล';
+        document.getElementById('kpi-highest-text').innerText = '-';
+        document.getElementById('kpi-highest-score').innerText = '-';
+        document.getElementById('kpi-lowest-text').innerText = '-';
+        document.getElementById('kpi-lowest-score').innerText = '-';
+        renderQuestionBars([]);
+        renderComments([]);
+        return;
+      }
+
+      // คำนวณรายข้อ
+      const qStats = QUESTIONS.map(q => {
+        let sum = 0;
+        const dist = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        currentResponses.forEach(r => {
+          const val = r.ratings ? r.ratings[q.id] : 0;
+          if (val >= 1 && val <= 5) {
+            sum += val;
+            dist[val]++;
+          }
+        });
+        const mean = Number((sum / total).toFixed(2));
+        return { ...q, mean, dist, level: getLikertLevel(mean) };
+      });
+
+      // คะแนนเฉลี่ยรวม
+      const overallSum = qStats.reduce((acc, curr) => acc + curr.mean, 0);
+      const overallMean = Number((overallSum / qStats.length).toFixed(2));
+      const overallLevel = getLikertLevel(overallMean);
+
+      document.getElementById('kpi-overall-score').innerText = overallMean.toFixed(2);
+      const levelBadge = document.getElementById('kpi-level-badge');
+      levelBadge.innerText = overallLevel.label;
+      levelBadge.className = `px-2.5 py-1 rounded-md text-xs font-bold border ${overallLevel.bg} ${overallLevel.color}`;
+
+      // หาสูงสุดและต่ำสุด
+      const sorted = [...qStats].sort((a, b) => b.mean - a.mean);
+      const highest = sorted[0];
+      const lowest = sorted[sorted.length - 1];
+
+      document.getElementById('kpi-highest-text').innerText = highest.short;
+      document.getElementById('kpi-highest-score').innerText = `เฉลี่ย ${highest.mean.toFixed(2)} / 5.00`;
+
+      document.getElementById('kpi-lowest-text').innerText = lowest.short;
+      document.getElementById('kpi-lowest-score').innerText = `เฉลี่ย ${lowest.mean.toFixed(2)} / 5.00`;
+
+      renderQuestionBars(qStats);
+      renderComments(currentResponses);
+    }
+
+    function renderQuestionBars(stats) {
+      const container = document.getElementById('questions-chart-container');
+      if (!stats.length) {
+        container.innerHTML = '<p class="text-sm text-slate-500 py-6 text-center">ยังไม่มีข้อมูลการประเมิน</p>';
+        return;
+      }
+
+      container.innerHTML = stats.map((item, idx) => {
+        // คำนวณความยาวแท่งเป็น % (เต็ม 5.00 = 100%)
+        const pct = Math.min(100, Math.max(0, (item.mean / 5) * 100));
+        let barColor = '#2563eb';
+        if (item.mean >= 4.51) barColor = '#059669'; // เขียว
+        else if (item.mean >= 3.51) barColor = '#3b82f6'; // ฟ้า
+        else if (item.mean >= 2.51) barColor = '#d97706'; // ส้ม
+        else barColor = '#e11d48'; // แดง
+
+        return `
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-bold text-slate-200">${item.title}</span>
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-white text-sm tabular-nums">${item.mean.toFixed(2)}</span>
+                <span class="text-[11px] px-1.5 py-0.5 rounded ${item.level.bg} ${item.level.color}">${item.level.label}</span>
+              </div>
+            </div>
+            
+            <!-- Progress Bar Track -->
+            <div class="w-full bg-slate-700/60 rounded-full h-3 overflow-hidden p-0.5">
+              <div class="bar-animate h-full rounded-full" style="width: ${pct}%; background-color: ${barColor}"></div>
+            </div>
+
+            <!-- Distribution breakdown: counts for score 5, 4, 3, 2, 1 -->
+            <div class="flex items-center justify-between text-[10px] text-slate-400 px-1">
+              <span>ให้ 5: ${item.dist[5]} คน</span>
+              <span>ให้ 4: ${item.dist[4]} คน</span>
+              <span>ให้ 3: ${item.dist[3]} คน</span>
+              <span>ให้ 2: ${item.dist[2]} คน</span>
+              <span>ให้ 1: ${item.dist[1]} คน</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderComments(responses) {
+      const container = document.getElementById('comments-container');
+      const comments = responses.filter(r => r.comment && r.comment.trim() !== '');
+      document.getElementById('comment-count-text').innerText = `${comments.length} รายการ`;
+
+      if (comments.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-500 text-center py-8">ยังไม่มีข้อเสนอแนะเพิ่มเติม</p>';
+        return;
+      }
+
+      container.innerHTML = comments.slice(0, 15).map(c => {
+        const avg = ((c.ratings.q1 + c.ratings.q2 + c.ratings.q3 + c.ratings.q4 + c.ratings.q5) / 5).toFixed(1);
+        return `
+          <div class="p-3 bg-slate-700/50 border border-slate-700 rounded-xl space-y-1">
+            <div class="flex items-center justify-between text-[11px] text-slate-400">
+              <span class="font-medium text-blue-400">ผู้ตอบนิรนาม (ให้คะแนนเฉลี่ย ${avg}★)</span>
+              <span>${c.dateFormatted || 'เมื่อสักครู่'}</span>
+            </div>
+            <p class="text-xs text-slate-200 leading-relaxed font-normal">"${c.comment}"</p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ==========================================
+    // 4. CSV EXPORT (WITH UTF-8 BOM FOR THAI EXCEL)
+    // ==========================================
+    function exportCSV() {
+      if (currentResponses.length === 0) {
+        alert('ยังไม่มีข้อมูลสำหรับดาวน์โหลด');
+        return;
+      }
+
+      const escapeCSV = (s) => `"${String(s || '').replace(/"/g, '""')}"`;
+      const lines = [];
+
+      lines.push(escapeCSV('รายงานสรุปผลการประเมินความพึงพอใจการอบรม (Live Dashboard)'));
+      lines.push(escapeCSV(`ส่งออกเมื่อ: ${new Date().toLocaleString('th-TH')}`));
+      lines.push(escapeCSV(`จำนวนผู้ตอบ: ${currentResponses.length} ท่าน`));
+      lines.push('');
+
+      lines.push([
+        escapeCSV('รหัสคำตอบ'),
+        escapeCSV('เวลา'),
+        escapeCSV('ข้อ 1 เนื้อหาหลักสูตร'),
+        escapeCSV('ข้อ 2 วิทยากรและการสอน'),
+        escapeCSV('ข้อ 3 สื่อและเอกสาร'),
+        escapeCSV('ข้อ 4 เวลาและสถานที่'),
+        escapeCSV('ข้อ 5 การนำไปใช้จริง'),
+        escapeCSV('คะแนนเฉลี่ย'),
+        escapeCSV('ข้อเสนอแนะ')
+      ].join(','));
+
+      currentResponses.forEach(r => {
+        const avg = ((r.ratings.q1 + r.ratings.q2 + r.ratings.q3 + r.ratings.q4 + r.ratings.q5) / 5).toFixed(2);
+        lines.push([
+          escapeCSV(r.id),
+          escapeCSV(new Date(r.timestamp).toLocaleString('th-TH')),
+          escapeCSV(r.ratings.q1),
+          escapeCSV(r.ratings.q2),
+          escapeCSV(r.ratings.q3),
+          escapeCSV(r.ratings.q4),
+          escapeCSV(r.ratings.q5),
+          escapeCSV(avg),
+          escapeCSV(r.comment || '-')
+        ].join(','));
+      });
+
+      // \uFEFF คือ UTF-8 Byte Order Mark ป้องกันภาษาไทยเพี้ยนใน MS Excel
+      const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `training_satisfaction_results_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // ==========================================
+    // 5. QR CODE & SHARE LINK
+    // ==========================================
+    function getSurveyUrl() {
+      const loc = window.location;
+      // หากอยู่ในโฟลเดอร์เดียวกัน ให้ชี้ไปที่ survey.html
+      return loc.origin + loc.pathname.replace('dashboard.html', 'survey.html');
+    }
+
+    function initSurveyUrl() {
+      const url = getSurveyUrl();
+      const input = document.getElementById('survey-url-input');
+      if (input) input.value = url;
+    }
+
+    function openQRModal() {
+      const url = getSurveyUrl();
+      const modal = document.getElementById('qr-modal');
+      const container = document.getElementById('qrcode-display');
+      container.innerHTML = '';
+
+      new QRCode(container, {
+        text: url,
+        width: 220,
+        height: 220,
+        colorDark: "#0f172a",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+      });
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeQRModal() {
+      document.getElementById('qr-modal').classList.add('hidden');
+    }
+
+    function copySurveyUrl() {
+      const input = document.getElementById('survey-url-input');
+      navigator.clipboard.writeText(input.value);
+      const btn = document.getElementById('copy-url-btn');
+      btn.innerText = 'คัดลอกแล้ว!';
+      setTimeout(() => { btn.innerText = 'คัดลอกลิงก์'; }, 2000);
+    }
+
+    // Fullscreen for projector
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+
+    // Theme toggle (Dark / Light)
+    let isDark = true;
+    function toggleTheme() {
+      isDark = !isDark;
+      const body = document.getElementById('app-body');
+      if (!isDark) {
+        body.classList.remove('bg-slate-900', 'text-slate-100');
+        body.classList.add('bg-slate-100', 'text-slate-900');
+      } else {
+        body.classList.remove('bg-slate-100', 'text-slate-900');
+        body.classList.add('bg-slate-900', 'text-slate-100');
+      }
+    }
+
+    // ==========================================
+    // 6. DEMO / TEST SEED HELPERS
+    // ==========================================
+    function seedDemoData(broadcast = true) {
+      const samples = [
+        { id: 'sample-1', timestamp: Date.now() - 1000 * 60 * 30, ratings: { q1: 5, q2: 5, q3: 4, q4: 4, q5: 5 }, comment: 'วิทยากรสอนดีมาก Workshop ทำได้จริงครับ' },
+        { id: 'sample-2', timestamp: Date.now() - 1000 * 60 * 20, ratings: { q1: 5, q2: 5, q3: 5, q4: 4, q5: 5 }, comment: 'เนื้อหากระชับ นำไปต่อยอดใช้ในงานได้เลย' },
+        { id: 'sample-3', timestamp: Date.now() - 1000 * 60 * 10, ratings: { q1: 4, q2: 5, q3: 4, q4: 5, q5: 4 }, comment: 'อยากให้จัดคอร์สระดับ Advanced ต่อเนื่องครับ' },
+        { id: 'sample-4', timestamp: Date.now() - 1000 * 60 * 5, ratings: { q1: 5, q2: 4, q3: 4, q4: 3, q5: 4 }, comment: 'บรรยากาศดี เอกสารเข้าใจง่าย' },
+        { id: 'sample-5', timestamp: Date.now() - 1000 * 60 * 2, ratings: { q1: 5, q2: 5, q3: 5, q4: 5, q5: 5 }, comment: 'ประทับใจมาก ขอบคุณทีมงานครับ' }
+      ];
+      currentResponses = samples;
+      localStorage.setItem(LOCAL_DATA_KEY, JSON.stringify(samples));
+      if (broadcast) {
+        try {
+          const ch = new BroadcastChannel('liveeval_realtime_sync');
+          ch.postMessage({ type: 'UPDATE' });
+        } catch (_) {}
+      }
+      updateDashboard();
+    }
+
+    function clearAllData() {
+      if (confirm('ต้องการล้างข้อมูลคำตอบทั้งหมดใช่หรือไม่?')) {
+        currentResponses = [];
+        localStorage.removeItem(LOCAL_DATA_KEY);
+        try {
+          const ch = new BroadcastChannel('liveeval_realtime_sync');
+          ch.postMessage({ type: 'UPDATE' });
+        } catch (_) {}
+        updateDashboard();
+      }
+    }
+  </script>
+</body>
+</html>
