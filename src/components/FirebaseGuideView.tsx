@@ -507,8 +507,17 @@ const dashboardHtmlCode = `<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- 5 Question Bars -->
-    <div id="bars-container" class="bg-slate-800 p-6 rounded-2xl space-y-4"></div>
+    <!-- Mode Selector & Container for Circular Charts -->
+    <div class="bg-slate-800 p-6 rounded-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700">
+        <h2 class="text-base font-bold text-white">คะแนนเฉลี่ยรายข้อ (สเกล 1 - 5)</h2>
+        <div class="flex gap-1 bg-slate-900 p-1 rounded-lg">
+          <button id="btn-circle" onclick="setMode('circle')" class="px-3 py-1 bg-blue-600 rounded text-xs font-bold text-white">⭕ กราฟวงกลม</button>
+          <button id="btn-bar" onclick="setMode('bar')" class="px-3 py-1 text-slate-400 hover:text-white rounded text-xs font-bold">📊 กราฟแท่ง</button>
+        </div>
+      </div>
+      <div id="charts-container" class="space-y-4"></div>
+    </div>
   </div>
 
   <script>
@@ -522,25 +531,76 @@ const dashboardHtmlCode = `<!DOCTYPE html>
       firebase.initializeApp(firebaseConfig);
       firebase.database().ref('training_eval/responses').on('value', (snap) => {
         const val = snap.val();
-        renderData(val ? Object.values(val) : []);
+        cachedList = val ? Object.values(val) : [];
+        renderAll(cachedList);
       });
     }
 
-    function renderData(list) {
+    let cachedList = [];
+    let currentMode = 'circle';
+
+    function setMode(m) {
+      currentMode = m;
+      document.getElementById('btn-circle').className = m === 'circle' ? 'px-3 py-1 bg-blue-600 rounded text-xs font-bold text-white' : 'px-3 py-1 text-slate-400 hover:text-white rounded text-xs font-bold';
+      document.getElementById('btn-bar').className = m === 'bar' ? 'px-3 py-1 bg-blue-600 rounded text-xs font-bold text-white' : 'px-3 py-1 text-slate-400 hover:text-white rounded text-xs font-bold';
+      renderAll(cachedList);
+    }
+
+    const QUESTIONS = [
+      { id: 'q1', title: '1. เนื้อหาและหลักสูตรการอบรม' },
+      { id: 'q2', title: '2. วิทยากรและเทคนิคการสอน' },
+      { id: 'q3', title: '3. สื่อ เอกสาร และอุปกรณ์' },
+      { id: 'q4', title: '4. การจัดเวลาและสถานที่' },
+      { id: 'q5', title: '5. การนำไปประยุกต์ใช้จริง' }
+    ];
+
+    function renderAll(list) {
       document.getElementById('total-count').innerText = list.length + ' ท่าน';
       if (!list.length) return;
       let sumAll = 0;
-      list.forEach(r => {
-        sumAll += (r.ratings.q1 + r.ratings.q2 + r.ratings.q3 + r.ratings.q4 + r.ratings.q5) / 5;
+      const qMeans = QUESTIONS.map(q => {
+        let qSum = 0;
+        list.forEach(r => { qSum += r.ratings ? r.ratings[q.id] : 0; });
+        const mean = Number((qSum / list.length).toFixed(2));
+        sumAll += mean;
+        return { ...q, mean };
       });
-      const mean = (sumAll / list.length).toFixed(2);
-      document.getElementById('mean-score').innerText = mean;
-      document.getElementById('level-badge').innerText = mean >= 4.51 ? 'มากที่สุด' : mean >= 3.51 ? 'มาก' : 'ปานกลาง';
-    }
+      const overall = Number((sumAll / 5).toFixed(2));
+      document.getElementById('mean-score').innerText = overall;
+      document.getElementById('level-badge').innerText = overall >= 4.51 ? 'มากที่สุด' : overall >= 3.51 ? 'มาก' : 'ปานกลาง';
 
-    function exportCSV() {
-      // Export with UTF-8 BOM
-      alert('ดาวน์โหลด CSV สำเร็จ');
+      const container = document.getElementById('charts-container');
+      if (currentMode === 'circle') {
+        container.innerHTML = qMeans.map((item, idx) => {
+          const size = 80;
+          const r = 32;
+          const circ = 2 * Math.PI * r;
+          const pct = Math.min(100, (item.mean / 5) * 100);
+          const offset = circ - (pct / 100) * circ;
+          return \`
+            <div class="p-3 bg-slate-900/60 rounded-xl flex items-center gap-4 border border-slate-700">
+              <div class="relative shrink-0" style="width: \${size}px; height: \${size}px;">
+                <svg width="\${size}" height="\${size}" class="transform -rotate-90">
+                  <circle cx="\${size/2}" cy="\${size/2}" r="\${r}" stroke="#334155" stroke-width="6" fill="none" />
+                  <circle cx="\${size/2}" cy="\${size/2}" r="\${r}" stroke="#10b981" stroke-width="6" stroke-dasharray="\${circ}" stroke-dashoffset="\${offset}" stroke-linecap="round" fill="none" />
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center font-bold text-sm">\${item.mean}</div>
+              </div>
+              <div>
+                <h4 class="font-bold text-sm text-white">\${item.title}</h4>
+                <p class="text-xs text-slate-400 mt-1">คะแนน \${item.mean} / 5.00</p>
+              </div>
+            </div>
+          \`;
+        }).join('');
+      } else {
+        container.innerHTML = qMeans.map(item => \`
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs font-bold text-slate-200"><span>\${item.title}</span><span>\${item.mean} / 5.00</span></div>
+            <div class="w-full bg-slate-700 rounded-full h-3"><div class="bg-blue-600 h-3 rounded-full" style="width: \${(item.mean/5)*100}%"></div></div>
+          </div>
+        \`).join('');
+      }
     }
   </script>
 </body>
