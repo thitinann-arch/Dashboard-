@@ -31,8 +31,34 @@ export default function App() {
     }
   }, []);
 
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('liveeval_theme');
+      if (saved) return saved === 'dark';
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const root = document.documentElement;
+      if (isDarkMode) {
+        root.classList.add('dark');
+        localStorage.setItem('liveeval_theme', 'dark');
+      } else {
+        root.classList.remove('dark');
+        localStorage.setItem('liveeval_theme', 'light');
+      }
+    }
+  }, [isDarkMode]);
+
+  const toggleTheme = () => {
+    setIsDarkMode((prev) => !prev);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col antialiased">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col antialiased transition-colors duration-200">
       {/* Top Header */}
       <Header
         currentTab={currentTab}
@@ -43,6 +69,8 @@ export default function App() {
           }
         }}
         onOpenQR={() => setIsQRModalOpen(true)}
+        isDarkMode={isDarkMode}
+        onToggleTheme={toggleTheme}
       />
 
       {/* Main View Area */}
@@ -59,6 +87,8 @@ export default function App() {
           <DashboardView
             onOpenQR={() => setIsQRModalOpen(true)}
             surveyUrl={surveyUrl}
+            isDarkMode={isDarkMode}
+            onToggleTheme={toggleTheme}
           />
         )}
 

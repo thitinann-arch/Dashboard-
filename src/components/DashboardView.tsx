@@ -15,14 +15,23 @@ import {
   RefreshCw,
   PieChart,
   BarChart3,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 interface DashboardViewProps {
   onOpenQR: () => void;
   surveyUrl: string;
+  isDarkMode?: boolean;
+  onToggleTheme?: () => void;
 }
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenQR }) => {
+export const DashboardView: React.FC<DashboardViewProps> = ({
+  onOpenQR,
+  surveyUrl,
+  isDarkMode,
+  onToggleTheme,
+}) => {
   const [responses, setResponses] = useState<SurveyResponse[]>([]);
   const [summary, setSummary] = useState<SurveySummary>(() => storageService.calculateSummary([]));
   const [lastUpdated, setLastUpdated] = useState<string>('');
@@ -129,10 +138,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onOpenQR }) => {
             <span>ดาวน์โหลด CSV</span>
           </button>
 
+          {onToggleTheme && (
+            <button
+              onClick={onToggleTheme}
+              className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+              title={isDarkMode ? 'เปลี่ยนเป็นโหมดสว่าง (Light)' : 'เปลี่ยนเป็นโหมดมืด (Dark)'}
+            >
+              {isDarkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-600" />}
+              <span className="hidden sm:inline">{isDarkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</span>
+            </button>
+          )}
+
           <button
             onClick={toggleFullscreen}
-            className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs transition-colors"
-            title="ขยายเต็มจอ"
+            className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs transition-colors cursor-pointer"
+            title="ขยายเต็มจอสำหรับโปรเจกเตอร์"
           >
             <Maximize2 className="w-4 h-4" />
           </button>
